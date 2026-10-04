@@ -4624,6 +4624,7 @@
               "move_up": null,
               "move_word_left": null,
               "move_word_right": null,
+              "select_all": null,
               "yank": null
             },
             "global": {
@@ -5342,6 +5343,14 @@
           ],
           "description": "Move cursor to end of next word."
         },
+        "select_all": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KeybindingsSpec"
+            }
+          ],
+          "description": "Select all text in the editor."
+        },
         "yank": {
           "allOf": [
             {
@@ -5606,6 +5615,7 @@
             "move_up": null,
             "move_word_left": null,
             "move_word_right": null,
+            "select_all": null,
             "yank": null
           }
         },

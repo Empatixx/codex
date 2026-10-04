@@ -17,6 +17,8 @@
 //! masked rendering never exposes hyperlink destinations.
 //! Mouse selection and wheel browsing use those same visual rows and keep graphemes and elements
 //! atomic. Wheel browsing leaves the caret in place; moving or editing returns to caret following.
+//! The select-all editor action shares the editable selection with mouse gestures, so subsequent
+//! typing, pasting, or deletion replaces the selection, including atomic elements.
 //! The editing module resolves replacement targets shared by insertion and paste-context inspection.
 
 use crate::key_hint::KeyBindingListExt;
@@ -652,6 +654,10 @@ impl TextArea {
     pub fn input_with_keymap(&mut self, event: KeyEvent, keymap: &EditorKeymap) {
         self.last_click = None;
         self.end_mouse_drag();
+        if keymap.select_all.is_pressed(event) {
+            self.select_all();
+            return;
+        }
         if keymap.insert_newline.is_pressed(event) {
             self.insert_str("\n");
             return;
@@ -3642,7 +3648,7 @@ mod tests {
         t.move_cursor_to_beginning_of_line(/*move_up_at_bol*/ false);
         assert_eq!(t.cursor(), second_line_start);
 
-        // Ctrl-A behavior: if at BOL, go to beginning of previous line
+        // When Ctrl-A is remapped to line start, BOL moves to the previous line.
         t.move_cursor_to_beginning_of_line(/*move_up_at_bol*/ true);
         assert_eq!(t.cursor(), 0); // beginning of first line
 

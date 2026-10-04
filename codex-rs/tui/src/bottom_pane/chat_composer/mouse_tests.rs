@@ -179,3 +179,52 @@ fn right_click_copy_uses_the_refreshed_editor_bounds() {
     );
     assert_eq!(composer.draft.textarea.mouse_selection_range(), None);
 }
+
+#[test]
+fn select_all_copy_preserves_the_draft_and_clears_only_confirmed_selections() {
+    let draft = "žluťoučký 🦀\nsecond line";
+    for result in [
+        Ok(CopyStatus::Confirmed),
+        Ok(CopyStatus::Unconfirmed),
+        Err("clipboard unavailable".to_string()),
+    ] {
+        let (mut composer, _rx) = new_test_composer();
+        composer.insert_str(draft);
+        composer.handle_key_event(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL));
+        let key = TuiEvent::Key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+        assert_eq!(
+            composer.copy_selection(&key, |text| {
+                assert_eq!(text, draft);
+                result.clone()
+            }),
+            Some((draft.chars().count(), result.clone()))
+        );
+        assert_eq!(composer.current_text(), draft);
+        assert_eq!(composer.draft.textarea.cursor(), draft.len());
+        assert_eq!(
+            composer.draft.textarea.mouse_selection_range(),
+            (result != Ok(CopyStatus::Confirmed)).then_some(0..draft.len())
+        );
+    }
+}
+
+#[test]
+fn select_all_is_not_cleared_by_an_earlier_copy_completion() {
+    let (mut composer, _rx) = new_test_composer();
+    composer.insert_str("hello");
+    let select_all = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL);
+    let copy = TuiEvent::Key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+    composer.handle_key_event(select_all);
+    assert_eq!(
+        composer.copy_selection(&copy, |_| Ok(CopyStatus::Pending(1))),
+        Some((5, Ok(CopyStatus::Pending(1))))
+    );
+    composer.handle_key_event(select_all);
+    assert_eq!(
+        composer.finish_copy(&(1, Ok(CopyStatus::Confirmed)), /*current*/ true),
+        None
+    );
+    assert_eq!(composer.draft.textarea.mouse_selection_range(), Some(0..5));
+    composer.handle_key_event(KeyCode::Backspace.into());
+    assert_eq!(composer.current_text(), "");
+}

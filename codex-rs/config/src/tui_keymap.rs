@@ -213,6 +213,8 @@ pub struct TuiComposerKeymap {
 #[serde(deny_unknown_fields)]
 #[schemars(deny_unknown_fields)]
 pub struct TuiEditorKeymap {
+    /// Select all text in the editor.
+    pub select_all: Option<KeybindingsSpec>,
     /// Insert a newline in the editor.
     pub insert_newline: Option<KeybindingsSpec>,
     /// Move cursor left by one grapheme.

@@ -5,6 +5,8 @@
 //! bursts, especially on Windows. Paste timing uses Tokio's clock so asynchronous flush deadlines
 //! and input classification share a clock, including in paused-time tests. Copy shortcuts and right
 //! clicks preserve selected draft text.
+//! Ctrl+A selects the whole draft through the remappable editor select-all action. Backspace,
+//! Delete, typing, and pasting replace that selection using the same path as a mouse selection.
 //! When enabled, fullscreen right-click paste requires an editable composer without a selection,
 //! search, or blocking view. The app reads clipboard text asynchronously and delivers a normal
 //! paste only while the same thread, draft, and cursor remain eligible. Intervening input or focus
@@ -5020,6 +5022,45 @@ mod tests {
             ),
             rx,
         )
+    }
+
+    #[test]
+    fn select_all_flushes_pending_typing_before_deleting_the_draft() {
+        let (mut composer, _rx) = new_test_composer();
+        composer.insert_str("first line");
+        composer
+            .draft
+            .paste_burst
+            .begin_with_retro_grabbed("\nsecond line".into(), Instant::now());
+        composer.handle_key_event(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL));
+        assert_eq!(composer.current_text(), "first line\nsecond line");
+        assert!(!composer.is_in_paste_burst());
+        composer.handle_key_event(KeyCode::Backspace.into());
+        assert_eq!(composer.current_text(), "");
+    }
+
+    #[test]
+    fn select_all_replacement_removes_paste_and_image_payloads() {
+        for delete in [false, true] {
+            let (mut composer, _rx) = new_test_composer();
+            composer.handle_paste("z".repeat(LARGE_PASTE_CHAR_THRESHOLD + 1));
+            composer.attach_image(PathBuf::from("image.png"));
+            assert!(!composer.draft.pending_pastes.is_empty());
+            assert!(!composer.attachments.is_empty());
+            composer.handle_key_event(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL));
+            if delete {
+                composer.handle_key_event(KeyCode::Delete.into());
+            } else {
+                composer.handle_paste("replacement".into());
+            }
+            assert_eq!(
+                composer.current_text(),
+                if delete { "" } else { "replacement" }
+            );
+            assert!(composer.draft.pending_pastes.is_empty());
+            assert!(composer.attachments.is_empty());
+            assert!(composer.draft.textarea.mouse_selection_range().is_none());
+        }
     }
 
     #[test]

@@ -27,6 +27,71 @@ fn mouse(t: &mut TextArea, state: TextAreaState, kind: MouseEventKind, x: u16, y
 }
 
 #[test]
+fn select_all_replaces_multiline_unicode_and_atomic_elements() {
+    for key in [KeyCode::Backspace, KeyCode::Delete, KeyCode::Char('X')] {
+        for vim in [false, true] {
+            let mut t = TextArea::new();
+            t.insert_str("žluťoučký 👩‍💻\nsecond line ");
+            t.insert_element("[Pasted text]");
+            t.set_cursor(2);
+            if vim {
+                t.set_vim_enabled(true);
+                t.enter_vim_insert_mode();
+            }
+            t.input(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL));
+            assert_eq!(t.mouse_selection_range(), Some(0..t.text().len()));
+            // Holding Ctrl+A must retain the full selection.
+            t.input(KeyEvent::new_with_kind(
+                KeyCode::Char('a'),
+                KeyModifiers::CONTROL,
+                KeyEventKind::Repeat,
+            ));
+            assert_eq!(t.mouse_selection_range(), Some(0..t.text().len()));
+            t.input(key.into());
+            assert_eq!(t.text(), if key == KeyCode::Char('X') { "X" } else { "" });
+            assert!(t.elements.is_empty());
+            assert!(t.mouse_selection_range().is_none());
+        }
+    }
+}
+
+#[test]
+fn select_all_highlights_visible_text_and_navigation_cancels_it() {
+    let mut t = TextArea::new();
+    t.insert_str("hello\nworld");
+    t.input(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL));
+    let area = Rect::new(
+        /*x*/ 0, /*y*/ 0, /*width*/ 12, /*height*/ 3,
+    );
+    let buffer = render(&t, area, &mut TextAreaState::default());
+    for y in 0..2 {
+        for x in 0..5 {
+            assert!(buffer[(x, y)].modifier.contains(Modifier::REVERSED));
+        }
+    }
+    t.input(KeyCode::Home.into());
+    assert_eq!(t.cursor(), 6);
+    assert!(t.mouse_selection_range().is_none());
+    t.input(KeyCode::Char('X').into());
+    assert_eq!(t.text(), "hello\nXworld");
+}
+
+#[test]
+fn select_all_empty_input_and_key_release_do_not_create_a_selection() {
+    let mut t = TextArea::new();
+    t.input(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL));
+    assert_eq!(t.cursor(), 0);
+    assert!(t.mouse_selection_range().is_none());
+    t.insert_str("draft");
+    t.input(KeyEvent::new_with_kind(
+        KeyCode::Char('a'),
+        KeyModifiers::CONTROL,
+        KeyEventKind::Release,
+    ));
+    assert!(t.mouse_selection_range().is_none());
+}
+
+#[test]
 fn wheel_at_edges_preserves_caret_following_or_browsing_after_resize() {
     let area = Rect::new(
         /*x*/ 0, /*y*/ 0, /*width*/ 14, /*height*/ 4,
