@@ -818,7 +818,7 @@ impl RuntimeKeymap {
             history_search_next: resolve_local!(keymap, defaults, composer, history_search_next),
         };
 
-        let mut editor = Arc::new(EditorKeymap {
+        let mut editor = EditorKeymap {
             select_all: resolve_local!(keymap, defaults, editor, select_all),
             insert_newline: resolve_local!(keymap, defaults, editor, insert_newline),
             move_left: resolve_local!(keymap, defaults, editor, move_left),
@@ -837,7 +837,7 @@ impl RuntimeKeymap {
             kill_whole_line: resolve_local!(keymap, defaults, editor, kill_whole_line),
             kill_line_end: resolve_local!(keymap, defaults, editor, kill_line_end),
             yank: resolve_local!(keymap, defaults, editor, yank),
-        });
+        };
         // Preserve explicit shortcuts (including legacy Ctrl+A line-start bindings).
         if keymap.editor.select_all.is_none()
             && (configured_main_surface_alias_is_used(keymap, "ctrl-a")
@@ -846,8 +846,9 @@ impl RuntimeKeymap {
                         && chord.chord.prefix == key_hint::ctrl(KeyCode::Char('a'))
                 }))
         {
-            Arc::make_mut(&mut editor).select_all.clear();
+            editor.select_all.clear();
         }
+        let editor = Arc::new(editor);
 
         let mut vim_normal = VimNormalKeymap {
             enter_insert: resolve_local!(keymap, defaults, vim_normal, enter_insert),

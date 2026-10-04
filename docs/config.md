@@ -9,8 +9,9 @@ For a full configuration reference, see [this documentation](https://developers.
 ## Selecting prompt text
 
 In the prompt editor, `Ctrl+A` selects all text, including multiple lines and
-inline attachment placeholders. Press `Backspace` or `Delete` to clear the
-selection, or type or paste to replace it. `Home` moves to the start of the line.
+inline attachment placeholders. Press `Ctrl+C` to copy the selection,
+`Backspace` or `Delete` to clear it, or type or paste to replace it.
+`Home` moves to the start of the line.
 
 Use `/keymap` to remap the editor's `select_all` action. Existing explicit
 `Ctrl+A` bindings take precedence over the new default. To restore the earlier
