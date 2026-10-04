@@ -184,6 +184,7 @@ pub(crate) struct ComposerKeymap {
 /// participate in global/chat fallback resolution.
 #[derive(Clone, Debug)]
 pub(crate) struct EditorKeymap {
+    pub(crate) select_all: Vec<KeyBinding>,
     pub(crate) insert_newline: Vec<KeyBinding>,
     pub(crate) move_left: Vec<KeyBinding>,
     pub(crate) move_right: Vec<KeyBinding>,
@@ -817,7 +818,8 @@ impl RuntimeKeymap {
             history_search_next: resolve_local!(keymap, defaults, composer, history_search_next),
         };
 
-        let editor = Arc::new(EditorKeymap {
+        let mut editor = Arc::new(EditorKeymap {
+            select_all: resolve_local!(keymap, defaults, editor, select_all),
             insert_newline: resolve_local!(keymap, defaults, editor, insert_newline),
             move_left: resolve_local!(keymap, defaults, editor, move_left),
             move_right: resolve_local!(keymap, defaults, editor, move_right),
@@ -836,6 +838,16 @@ impl RuntimeKeymap {
             kill_line_end: resolve_local!(keymap, defaults, editor, kill_line_end),
             yank: resolve_local!(keymap, defaults, editor, yank),
         });
+        // Preserve explicit shortcuts (including legacy Ctrl+A line-start bindings).
+        if keymap.editor.select_all.is_none()
+            && (configured_main_surface_alias_is_used(keymap, "ctrl-a")
+                || chords.bindings.iter().any(|chord| {
+                    chord.action.context.overlaps(KeymapContext::Editor)
+                        && chord.chord.prefix == key_hint::ctrl(KeyCode::Char('a'))
+                }))
+        {
+            Arc::make_mut(&mut editor).select_all.clear();
+        }
 
         let mut vim_normal = VimNormalKeymap {
             enter_insert: resolve_local!(keymap, defaults, vim_normal, enter_insert),
@@ -1686,6 +1698,7 @@ impl RuntimeKeymap {
                 history_search_next: default_bindings![ctrl(KeyCode::Char('s'))],
             },
             editor: Arc::new(EditorKeymap {
+                select_all: default_bindings![ctrl(KeyCode::Char('a'))],
                 insert_newline: default_bindings![
                     ctrl(KeyCode::Char('j')),
                     ctrl(KeyCode::Char('m')),
@@ -1707,7 +1720,7 @@ impl RuntimeKeymap {
                     raw(KeyBinding::new(KeyCode::Right, KeyModifiers::ALT)),
                     raw(KeyBinding::new(KeyCode::Right, KeyModifiers::CONTROL))
                 ],
-                move_line_start: default_bindings![plain(KeyCode::Home), ctrl(KeyCode::Char('a'))],
+                move_line_start: default_bindings![plain(KeyCode::Home)],
                 move_line_end: default_bindings![plain(KeyCode::End), ctrl(KeyCode::Char('e'))],
                 delete_backward: default_bindings![
                     plain(KeyCode::Backspace),
@@ -2217,6 +2230,7 @@ impl RuntimeKeymap {
                 ),
             ],
             [
+                ("editor.select_all", self.editor.select_all.as_slice()),
                 (
                     "editor.insert_newline",
                     self.editor.insert_newline.as_slice(),
@@ -3567,6 +3581,43 @@ mod tests {
                 KeyModifiers::CONTROL | KeyModifiers::SHIFT,
             )]
         );
+    }
+
+    #[test]
+    fn select_all_defaults_remapping_and_legacy_line_start() {
+        let mut config = TuiKeymap::default();
+        let runtime = RuntimeKeymap::from_config(&config).expect("default keymap");
+        assert_eq!(
+            runtime.editor.select_all,
+            vec![key_hint::ctrl(KeyCode::Char('a'))]
+        );
+        assert_eq!(
+            runtime.editor.move_line_start,
+            vec![key_hint::plain(KeyCode::Home)]
+        );
+
+        config.editor.move_line_start = Some(one("ctrl-a"));
+        let runtime = RuntimeKeymap::from_config(&config).expect("legacy binding wins");
+        assert!(runtime.editor.select_all.is_empty());
+
+        config.editor.move_line_start = Some(one("ctrl-a home"));
+        let runtime = RuntimeKeymap::from_config(&config).expect("legacy chord wins");
+        assert!(runtime.editor.select_all.is_empty());
+
+        config.editor.move_line_start = Some(one("ctrl-a"));
+        config.editor.select_all = Some(one("ctrl-a"));
+        expect_conflict(&config, "select_all", "move_line_start");
+
+        config.editor.select_all = Some(one("ctrl-shift-a"));
+        let runtime = RuntimeKeymap::from_config(&config).expect("remapped select all");
+        assert!(runtime.editor.select_all.is_pressed(KeyEvent::new(
+            KeyCode::Char('a'),
+            KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+        )));
+
+        config.editor.select_all = Some(KeybindingsSpec::Many(vec![]));
+        let runtime = RuntimeKeymap::from_config(&config).expect("unbound select all");
+        assert!(runtime.editor.select_all.is_empty());
     }
 
     #[test]

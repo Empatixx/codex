@@ -17,6 +17,21 @@ pub(super) struct MouseSelection {
 }
 
 impl TextArea {
+    pub(super) fn select_all(&mut self) {
+        self.set_cursor(self.text.len());
+        self.clear_vim_replace_recovery();
+        self.vim_pending = VimPending::None;
+        if !self.text.is_empty() {
+            self.mouse_selection = Some(MouseSelection {
+                pending_copy: None,
+                origin: 0..0,
+                unit: SelectionUnit::Character,
+                dragging: false,
+                moved: false,
+            });
+        }
+    }
+
     pub(in crate::bottom_pane) fn defer_copy(&mut self, id: u64) {
         if let Some(range) = self.mouse_selection_range()
             && let Some(selection) = &mut self.mouse_selection

@@ -302,6 +302,7 @@ define_runtime_action_bindings! {
         history_search_next,
     ],
     "editor" => Editor, editor, editor [
+        select_all,
         insert_newline,
         move_left,
         move_right,
